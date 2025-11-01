@@ -33,6 +33,8 @@ spec:
     nodePort: 30080
     # nodePort removed because Service is now ClusterIP
 
+
+#   ............................... ingress  ...............................
 ---
 # Ingress to expose the service on port 80
 apiVersion: networking.k8s.io/v1
@@ -53,3 +55,58 @@ spec:
             name: go-server-service
             port:
               number: 80
+
+
+
+#   ............................... Redis  ...............................
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.4
+        ports:
+        - containerPort: 6379
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+        # 可选: 持久化数据
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        command: ["redis-server", "--appendonly", "yes"]
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+
+#   ............................... xx  ...............................

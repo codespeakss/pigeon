@@ -6,6 +6,9 @@ docker image rm -f go-k8s-demo; docker build -t go-k8s-demo:latest .
 kubectl apply -f go-deploy.yaml                      
 kubectl get pods
 kubectl get svc
+## 重建 pod
+kubectl delete pod -l app=go-server
+kubectl get pods
 
 # 访问服务
 # 服务将通过 NodePort 30080 访问
