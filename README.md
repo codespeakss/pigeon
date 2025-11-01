@@ -18,3 +18,18 @@ curl http://127.0.0.1:30080
 # 如果需要临时调试，也可以使用端口转发：
 # kubectl port-forward svc/go-server-service 80:80
 # 然后访问：curl http://127.0.0.1
+
+
+# 清理
+kubectl delete deployment broker
+kubectl delete deployment go-server
+
+kubectl delete service go-server-service
+
+
+
+# broker 的构建、部署、更新
+docker build -t broker:latest -f deployments/broker/Dockerfile . ; kubectl apply -f deployments/broker/deployment.yaml; kubectl delete pod -l app=broker
+
+# coordinate 的构建、部署、更新
+docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . ; kubectl apply -f deployments/coordinator/deployment.yaml; kubectl delete pod -l app=broker
