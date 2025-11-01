@@ -12,11 +12,13 @@ import (
 
 type Server struct {
 	redisAddr string
+	BrokerID  string
 }
 
-func NewServer(redisAddr string) *Server {
+func NewServer(redisAddr string, BrokerID string) *Server {
 	return &Server{
 		redisAddr: redisAddr,
+		BrokerID:  BrokerID,
 	}
 }
 
@@ -41,9 +43,7 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	fmt.Printf("访问次数: %d\n", count)
-
-	if _, err := fmt.Fprintf(w, "23:03 Host: %s, Redis Count: %d", hostname, count); err != nil {
+	if _, err := fmt.Fprintf(w, "23:03 Host: %s, BrokerID: %s, Redis Count: %d", hostname, s.BrokerID, count); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }

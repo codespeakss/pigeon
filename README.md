@@ -33,5 +33,3 @@ docker build -t broker:latest -f deployments/broker/Dockerfile . ; kubectl apply
 
 # coordinate 的构建、部署、更新
 docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . ; kubectl apply -f deployments/coordinator/deployment.yaml; kubectl delete pod -l app=coordinator
-
-添加功能 ： 在 broker 启动时 自动访问 coordinator 的接口 得到 coordinator 分配给 broker的全局唯一 id
