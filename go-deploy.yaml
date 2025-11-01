@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: go-server
 spec:
-  replicas: 30
+  replicas: 4
   selector:
     matchLabels:
       app: go-server
@@ -24,12 +24,13 @@ kind: Service
 metadata:
   name: go-server-service
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: go-server
   ports:
   - port: 80
     targetPort: 8080
+    nodePort: 30080
     # nodePort removed because Service is now ClusterIP
 
 ---
