@@ -66,7 +66,8 @@ func (s *Server) AssignHandler(w http.ResponseWriter, r *http.Request) {
 	data, _ := json.Marshal(meta)
 	ctx := context.Background()
 	key := fmt.Sprintf("broker:%s", id)
-	if err := s.redisClient.Set(ctx, key, data, 0).Err(); err != nil {
+	ttl := 10 * time.Second
+	if err := s.redisClient.Set(ctx, key, data, ttl).Err(); err != nil {
 		log.Printf("failed to persist broker assignment to redis: %v", err)
 		http.Error(w, "failed to persist assignment", http.StatusInternalServerError)
 		return

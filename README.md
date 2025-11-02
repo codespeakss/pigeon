@@ -11,13 +11,13 @@ kubectl delete pod -l app=go-server
 kubectl get pods
 
 # 访问服务
-# 服务将通过 NodePort 30080 访问
-# 直接访问：
-curl http://127.0.0.1:30080
+ 服务将通过 NodePort 30080 访问
+ 直接访问： curl http://127.0.0.1:30080
 
-# 如果需要临时调试，也可以使用端口转发：
-# kubectl port-forward svc/go-server-service 80:80
-# 然后访问：curl http://127.0.0.1
+# 临时调试
+如果需要临时调试，也可以使用端口转发：
+ kubectl port-forward svc/go-server-service 80:80
+ 然后访问：curl http://127.0.0.1
 
 
 # 清理
@@ -33,3 +33,7 @@ docker build -t broker:latest -f deployments/broker/Dockerfile . ; kubectl apply
 
 # coordinate 的构建、部署、更新
 docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . ; kubectl apply -f deployments/coordinator/deployment.yaml; kubectl delete pod -l app=coordinator
+
+
+# 维护： 重建 redis （删除数据）
+kubectl delete pod -l app=redis
