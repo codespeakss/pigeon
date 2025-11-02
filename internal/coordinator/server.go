@@ -44,7 +44,7 @@ func (s *Server) RootHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// 处理协调逻辑
-	if _, err := fmt.Fprintf(w, "17:00 Coordinator Host: %s", hostname); err != nil {
+	if _, err := fmt.Fprintf(w, "Coordinator Host: %s", hostname); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }

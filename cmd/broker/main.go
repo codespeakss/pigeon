@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,8 +16,8 @@ import (
 	redis "github.com/redis/go-redis/v9"
 
 	"pigeon/internal/broker"
-	rpkg "pigeon/pkg/redis"
 	messages "pigeon/pkg/messages"
+	rpkg "pigeon/pkg/redis"
 )
 
 const (
@@ -47,8 +49,6 @@ type Message struct {
 	Type    string          `json:"type"`              // 消息类型: notification, ack
 	Payload json.RawMessage `json:"payload,omitempty"` // 消息内容
 }
-
-
 
 // AckPayload ACK 的载荷
 type AckPayload struct {
@@ -275,8 +275,9 @@ func validateToken(tokenStr string) (string, bool) {
 
 	const masterToken = "test-token"
 	if token == masterToken {
-		t := time.Now().Format("03:04:05PM") // 12小时制，包含秒
-		return "Client-" + t, true
+		t := time.Now().Format("03:04:05PM") // 时间部分
+		r := rand.Intn(1000000)              // 生成一个 0~999999 的随机数
+		return fmt.Sprintf("Client-%s-%06d", t, r), true
 	}
 
 	if token == "user-A-token" {
@@ -354,6 +355,7 @@ func startDemoNotificationSender(hub *Hub) {
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	rand.Seed(time.Now().UnixNano())
 }
 
 func main() {
