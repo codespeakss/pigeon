@@ -9,12 +9,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	rpkg "pigeon/pkg/redis"
 
-	"github.com/redis/go-redis/v9"
 	messages "pigeon/pkg/messages"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
@@ -189,13 +191,24 @@ func (s *Server) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "id": id})
 }
 
-// GetClientsHandler retrieves all clients managed by brokers
+// GetClientsHandler retrieves all clients managed by brokers.
+// Optional query parameter: ?broker_id=<broker-id> to filter clients belonging to a specific broker.
 func (s *Server) GetClientsHandler(w http.ResponseWriter, r *http.Request) {
 	// The broker persists each client as a separate hash keyed by "client:<id>".
-	// Previously this handler tried to HGETALL "clients" which doesn't match
-	// the way brokers write client data (they write keys like "client:Client-A").
-	// To be robust we now scan for keys "client:*" and aggregate each hash.
+	// We scan for keys "client:*" and aggregate each hash. If broker_id is
+	// provided we filter clients that have field "broker" equal to that id.
 	ctx := context.Background()
+
+	brokerFilter := r.URL.Query().Get("broker_id")
+
+	// Allow callers to pass either the full broker id (e.g. "broker-xxxx")
+	// or the short suffix (e.g. "xxxx"). Normalize to the full form so
+	// comparisons match what's stored by brokers (they store e.g. "broker-..."
+	// in the "broker" field).
+	origBrokerFilter := brokerFilter
+	if brokerFilter != "" && !strings.HasPrefix(brokerFilter, "broker-") {
+		brokerFilter = "broker-" + brokerFilter
+	}
 
 	keys, err := s.redisClient.Keys(ctx, "client:*").Result()
 	if err != nil {
@@ -205,6 +218,7 @@ func (s *Server) GetClientsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var clients []map[string]string
+	log.Printf("GetClientsHandler: broker_filter='%s' (orig='%s'), keys_found=%d", brokerFilter, origBrokerFilter, len(keys))
 	for _, key := range keys {
 		m, err := s.redisClient.HGetAll(ctx, key).Result()
 		if err != nil {
@@ -215,6 +229,15 @@ func (s *Server) GetClientsHandler(w http.ResponseWriter, r *http.Request) {
 			// skip empty results
 			continue
 		}
+
+		// if a broker filter is requested, only include matching clients
+		if brokerFilter != "" {
+			if b, ok := m["broker"]; !ok || b != brokerFilter {
+				log.Printf("skipping client %s: broker_field='%s' does not match filter='%s'", key, m["broker"], brokerFilter)
+				continue
+			}
+		}
+
 		clients = append(clients, m)
 	}
 

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Coordinator → Brokers → Clients</title>
+    <style>
+        body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 20px; }
+        .broker { margin-left: 20px; }
+        .clients { margin-left: 40px; }
+        .card { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin: 8px 0; background:#fafafa }
+        .small { color: #666; font-size: 0.9em }
+    </style>
+</head>
+<body>
+    <h1>Coordinator → Brokers → Clients</h1>
+    <p class="small">This page queries the coordinator for brokers and clients and shows the hierarchical relationship.</p>
+
+    <div id="coordinator" class="card">
+        <strong>Coordinator</strong>
+        <div id="coordInfo" class="small">loading...</div>
+    </div>
+
+    <div id="brokers"></div>
+
+    <script>
+        // Base URL for coordinator API (matches README/test/send.html use of 127.0.0.1:30081)
+        const BASE = 'http://127.0.0.1:30081';
+
+        async function fetchCoordinatorInfo() {
+            try {
+                const res = await fetch(BASE + '/');
+                const text = await res.text();
+                document.getElementById('coordInfo').textContent = text.trim();
+            } catch (err) {
+                document.getElementById('coordInfo').textContent = 'Failed to fetch coordinator: ' + err;
+            }
+        }
+
+        async function fetchBrokers() {
+            try {
+                const res = await fetch(BASE + '/api/v1/brokers');
+                if (!res.ok) throw new Error('status ' + res.status);
+                const brokers = await res.json();
+                renderBrokers(brokers);
+            } catch (err) {
+                const el = document.getElementById('brokers');
+                el.innerHTML = '<p class="small">Failed to fetch brokers: ' + err + '</p>';
+            }
+        }
+
+        function createBrokerElement(broker) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'card broker';
+
+            const title = document.createElement('div');
+            title.innerHTML = `<strong>Broker: </strong> <span>${broker.id || broker.id}</span>`;
+            wrapper.appendChild(title);
+
+            const meta = document.createElement('div');
+            meta.className = 'small';
+            meta.textContent = `assigned_at: ${broker.assigned_at || ''}  last_seen: ${broker.last_seen || ''}  remote_addr: ${broker.remote_addr || ''}`;
+            wrapper.appendChild(meta);
+
+            const clientsContainer = document.createElement('div');
+            clientsContainer.className = 'clients small';
+            clientsContainer.textContent = 'loading clients...';
+            wrapper.appendChild(clientsContainer);
+
+            // fetch clients for this broker
+            (async () => {
+                try {
+                    const res = await fetch(BASE + '/api/v1/clients?broker_id=' + encodeURIComponent(broker.id));
+                    if (!res.ok) throw new Error('status ' + res.status);
+                    const clients = await res.json();
+                    // defensive: some responses may be null or not an array
+                    if (!Array.isArray(clients) || clients.length === 0) {
+                        clientsContainer.textContent = 'no clients';
+                        return;
+                    }
+                    clientsContainer.innerHTML = '';
+                    const ul = document.createElement('ul');
+                    clients.forEach(c => {
+                        const li = document.createElement('li');
+                        li.textContent = c.id || c.client_id || c.name || JSON.stringify(c);
+                        ul.appendChild(li);
+                    });
+                    clientsContainer.appendChild(ul);
+                } catch (err) {
+                    clientsContainer.textContent = 'failed to fetch clients: ' + err;
+                }
+            })();
+
+            return wrapper;
+        }
+
+        function renderBrokers(brokers) {
+            const el = document.getElementById('brokers');
+            el.innerHTML = '';
+            if (!Array.isArray(brokers) || brokers.length === 0) {
+                el.innerHTML = '<p class="small">No brokers found.</p>';
+                return;
+            }
+
+            brokers.forEach(broker => {
+                const be = createBrokerElement(broker);
+                el.appendChild(be);
+            });
+        }
+
+        // initial load
+        fetchCoordinatorInfo();
+        fetchBrokers();
+    </script>
+</body>
+</html>

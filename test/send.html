@@ -29,11 +29,15 @@
             try {
                 const response = await fetch('http://127.0.0.1:30081/api/v1/clients');
                 const clients = await response.json();
+                if (!Array.isArray(clients) || clients.length === 0) {
+                    statusP.textContent = 'No clients available';
+                    return;
+                }
 
                 clients.forEach(client => {
                     const option = document.createElement('option');
-                    option.value = client.id;
-                    option.textContent = client.id;
+                    option.value = client.id || client.client_id || '';
+                    option.textContent = client.id || client.client_id || JSON.stringify(client);
                     clientsSelect.appendChild(option);
                 });
             } catch (err) {
