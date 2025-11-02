@@ -22,6 +22,19 @@ func NewServer(redisAddr string, BrokerID string) *Server {
 	}
 }
 
+func (s *Server) SubscribeTopic(ctx context.Context, topic string) {
+	rdb := redisClient.NewClient(s.redisAddr)
+	// topic := s.BrokerID
+	go func() {
+		err := redisClient.Subscribe(ctx, rdb, topic, func(msg string) {
+			fmt.Printf("[Broker %s] Received message: %s\n", topic, msg)
+		})
+		if err != nil {
+			log.Printf("Subscribe error: %v", err)
+		}
+	}()
+}
+
 func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 	hostname, err := os.Hostname()
 	if err != nil {

@@ -40,14 +40,14 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 // AssignHandler generates and returns a random id assigned by the coordinator.
 // Response JSON: {"id":"..."}
 func (s *Server) AssignHandler(w http.ResponseWriter, r *http.Request) {
-	// generate 16 random bytes and hex-encode them
-	b := make([]byte, 16)
+	// generate 4 random bytes and hex-encode them
+	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
 		http.Error(w, "failed to generate id", http.StatusInternalServerError)
 		log.Printf("failed to generate id: %v", err)
 		return
 	}
-	id := hex.EncodeToString(b)
+	id := "broker-" + hex.EncodeToString(b)
 
 	resp := map[string]string{"id": id}
 	w.Header().Set("Content-Type", "application/json")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -15,6 +16,10 @@ func init() {
 }
 
 func main() {
+	// 创建一个根context，并设置取消函数
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // 确保在main函数返回前取消context
+
 	// coordinator-service exposes port 80 (nodePort 30081) and maps to container 8081.
 	// Use the service port (80) or omit it so in-cluster DNS resolves to port 80 by default.
 	coordinatorURL := "http://coordinator-service/assign"
@@ -26,6 +31,12 @@ func main() {
 	}
 
 	srv := broker.NewServer("redis-service:6379", BrokerID)
+
+	if BrokerID != "" {
+		// 启动订阅以 BrokerID 为 topic 的 Redis 消息
+		go srv.SubscribeTopic(ctx, BrokerID)
+	}
+
 	http.HandleFunc("/", srv.Handler)
 
 	server := &http.Server{
