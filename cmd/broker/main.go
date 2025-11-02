@@ -22,7 +22,7 @@ func main() {
 
 	// coordinator-service exposes port 80 (nodePort 30081) and maps to container 8081.
 	// Use the service port (80) or omit it so in-cluster DNS resolves to port 80 by default.
-	coordinatorURL := "http://coordinator-service/assign"
+	coordinatorURL := "http://coordinator-service/api/v1/assign"
 	BrokerID := fetchBrokerID(coordinatorURL)
 	if BrokerID == "" {
 		log.Printf("Warning: failed to obtain coordinator ID from %s, continuing without it", coordinatorURL)
