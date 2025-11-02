@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Send Message to Client</title>
+</head>
+<body>
+    <h2>Send Message to Client</h2>
+
+    <label for="clients">Select Client:</label>
+    <select id="clients"></select>
+    <br><br>
+
+    <label for="message">Message:</label>
+    <input type="text" id="message" placeholder="Type your message" />
+    <br><br>
+
+    <button id="sendBtn">Send</button>
+
+    <p id="status"></p>
+
+    <script>
+        const clientsSelect = document.getElementById('clients');
+        const messageInput = document.getElementById('message');
+        const statusP = document.getElementById('status');
+
+        // 获取客户端列表
+        async function fetchClients() {
+            try {
+                const response = await fetch('http://127.0.0.1:30081/api/v1/clients');
+                const clients = await response.json();
+
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client.id;
+                    option.textContent = client.id;
+                    clientsSelect.appendChild(option);
+                });
+            } catch (err) {
+                statusP.textContent = 'Failed to fetch clients: ' + err;
+            }
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const clientId = clientsSelect.value;
+            const message = messageInput.value;
+
+            if (!clientId || !message) {
+                statusP.textContent = 'Please select a client and enter a message.';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:30081/api/v1/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        data: message
+                    })
+                });
+
+                const result = await response.json();
+                statusP.textContent = `Message status: ${result.status}, msg_id: ${result.msg_id}`;
+            } catch (err) {
+                statusP.textContent = 'Failed to send message: ' + err;
+            }
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+
+        fetchClients();
+    </script>
+</body>
+</html>
