@@ -14,6 +14,7 @@ import (
 	rpkg "pigeon/pkg/redis"
 
 	"github.com/redis/go-redis/v9"
+	messages "pigeon/pkg/messages"
 )
 
 type Server struct {
@@ -260,11 +261,7 @@ func (s *Server) SendToClientHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build the same message shape brokers expect for notifications.
-	type NotificationPayload struct {
-		MsgID    string `json:"msg_id"`
-		Data     string `json:"data"`
-		ClientID string `json:"client_id"`
-	}
+
 	type Message struct {
 		Type    string          `json:"type"`
 		Payload json.RawMessage `json:"payload,omitempty"`
@@ -275,7 +272,7 @@ func (s *Server) SendToClientHandler(w http.ResponseWriter, r *http.Request) {
 		msgID = "msg-" + time.Now().Format("20060102T150405.000")
 	}
 
-	payload := NotificationPayload{MsgID: msgID, Data: req.Data, ClientID: req.ClientID}
+	payload := messages.NotificationPayload{MsgID: msgID, Data: req.Data, ClientID: req.ClientID}
 	payloadBytes, _ := json.Marshal(payload)
 	msg := Message{Type: "notification", Payload: payloadBytes}
 	msgBytes, _ := json.Marshal(msg)

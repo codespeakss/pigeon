@@ -15,6 +15,7 @@ import (
 
 	"pigeon/internal/broker"
 	rpkg "pigeon/pkg/redis"
+	messages "pigeon/pkg/messages"
 )
 
 const (
@@ -47,16 +48,15 @@ type Message struct {
 	Payload json.RawMessage `json:"payload,omitempty"` // 消息内容
 }
 
-// NotificationPayload 通知的载荷
-type NotificationPayload struct {
-	MsgID string `json:"msg_id"` // 消息 ID，用于 ACK
-	Data  string `json:"data"`
-}
+
 
 // AckPayload ACK 的载荷
 type AckPayload struct {
 	MsgID string `json:"msg_id"` // 对应的消息 ID
 }
+
+// ConnectedPayload 服务端在连接建立成功后发送给客户端的载荷，包含分配的 client_id
+// ConnectedPayload moved to pkg/messages
 
 // Client 是一个 WebSocket 客户端的中间表示
 type Client struct {
@@ -314,7 +314,21 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 	client.hub.register <- client
 
+	// Start writePump first so we can push an initial "connected" message
 	go client.writePump()
+
+	// Send connected message to inform client of its assigned client_id
+	connectedPayload := messages.ConnectedPayload{ClientID: clientID}
+	payloadBytes, _ := json.Marshal(connectedPayload)
+	connMsg := Message{Type: "connected", Payload: payloadBytes}
+	connMsgBytes, _ := json.Marshal(connMsg)
+	// non-blocking send: if channel is full, drop the message (connection likely closing)
+	select {
+	case client.send <- connMsgBytes:
+	default:
+		log.Printf("[WARN] client %s send channel full when sending connected message", clientID)
+	}
+
 	go client.readPump()
 }
 
@@ -324,7 +338,7 @@ func startDemoNotificationSender(hub *Hub) {
 
 	log.Println("--- [DEMO] Sending notification to Client-A ---")
 
-	payload := NotificationPayload{
+	payload := messages.NotificationPayload{
 		MsgID: "msg-12345",
 		Data:  "This is an asynchronous notification!",
 	}
@@ -403,7 +417,7 @@ func main() {
 			msgID = "msg-" + time.Now().Format("20060102T150405.000")
 		}
 
-		payload := NotificationPayload{
+		payload := messages.NotificationPayload{
 			MsgID: msgID,
 			Data:  req.Data,
 		}

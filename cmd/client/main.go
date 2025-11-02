@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"pigeon/pkg/messages"
 )
 
 // Message 定义（与服务端保持一致）
@@ -18,13 +19,11 @@ type Message struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
-type NotificationPayload struct {
-	MsgID string `json:"msg_id"`
-	Data  string `json:"data"`
-}
+
 type AckPayload struct {
 	MsgID string `json:"msg_id"`
 }
+// ConnectedPayload moved to pkg/messages
 
 // 服务端设置的超时时间（客户端也需要）
 const (
@@ -63,8 +62,21 @@ func readPump(conn *websocket.Conn, sendChan chan<- []byte, done chan<- struct{}
 		}
 
 		switch msg.Type {
+		case "connected":
+			var payload messages.ConnectedPayload
+			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+				log.Printf("[WARN] Failed to unmarshal connected payload: %v", err)
+				continue
+			}
+
+			// 服务端在连接建立成功后告知客户端 client-id
+			log.Printf("[INFO] Connected. Assigned client_id: %s", payload.ClientID)
+
+			// 如果需要，后续可将 client-id 写入本地状态或发送到其他 goroutine
+			continue
+
 		case "notification":
-			var payload NotificationPayload
+			var payload messages.NotificationPayload
 			if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 				log.Printf("[WARN] Failed to unmarshal notification payload: %v", err)
 				continue
@@ -80,7 +92,7 @@ func readPump(conn *websocket.Conn, sendChan chan<- []byte, done chan<- struct{}
 
 			// 将 ACK 消息发送到 writePump 的 channel
 			sendChan <- ackMsgBytes
-			log.Printf("[SEND] ACK for MsgID: %s", payload.MsgID)
+			log.Printf("             [SEND] ACK for MsgID: %s", payload.MsgID)
 
 		default:
 			log.Printf("[RECV] Unhandled message type: %s", msg.Type)

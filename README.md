@@ -46,7 +46,7 @@ docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . && ku
 docker pull golang:1.22-alpine
 
 # broker 的构建、部署、更新
-docker build -t broker:latest -f deployments/broker/Dockerfile . ; kubectl apply -f deployments/broker/deployment.yaml; kubectl delete pod -l app=broker
+docker build -t broker:latest -f deployments/broker/Dockerfile . && kubectl apply -f deployments/broker/deployment.yaml && kubectl delete pod -l app=broker
 
 
 # 维护： 重建 redis （删除数据）
