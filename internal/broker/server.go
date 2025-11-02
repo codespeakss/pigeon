@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	redisClient "github.com/codespeakss/k8s/pkg/redis"
+	redisClient "pigeon/pkg/redis"
 )
 
 type Server struct {

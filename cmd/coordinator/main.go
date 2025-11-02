@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/codespeakss/k8s/internal/coordinator"
+	"pigeon/internal/coordinator"
 )
 
 func init() {
@@ -16,6 +16,7 @@ func main() {
 	srv := coordinator.NewServer("redis-service:6379")
 	http.HandleFunc("/", srv.Handler)
 	http.HandleFunc("/api/v1/assign", srv.AssignHandler)
+	http.HandleFunc("/api/v1/brokers/heartbeat", srv.HeartbeatHandler)
 	http.HandleFunc("/api/v1/brokers/{id}", srv.GetBrokerHandler)
 	http.HandleFunc("/api/v1/brokers", srv.GetAllBrokersHandler)
 

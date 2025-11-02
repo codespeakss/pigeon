@@ -1,4 +1,13 @@
 
+
+# 代理环境准备
+MacOS M1  Docker Desktop 上 Resource Proxies 上 打开 ‘手动配置’ 并将 http 和 https 代理均设置为如下
+在 http://127.0.0.1:7880 
+可能需要设置 export DOCKER_BUILDKIT=0
+
+docker exec -it warp-proxxy /bin/bash
+
+
 # 构建镜像
 docker image rm -f go-k8s-demo; docker build -t go-k8s-demo:latest .
 
@@ -27,13 +36,21 @@ kubectl delete deployment go-server
 kubectl delete service go-server-service
 
 
+# coordinate 的构建、部署、更新
+curl -x socks5h://127.0.0.1:7880 https://www.google.com -v
+docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . && kubectl apply -f deployments/coordinator/deployment.yaml && kubectl delete pod -l app=coordinator
+
+
+docker pull golang:1.22-alpine
 
 # broker 的构建、部署、更新
 docker build -t broker:latest -f deployments/broker/Dockerfile . ; kubectl apply -f deployments/broker/deployment.yaml; kubectl delete pod -l app=broker
 
-# coordinate 的构建、部署、更新
-docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . ; kubectl apply -f deployments/coordinator/deployment.yaml; kubectl delete pod -l app=coordinator
-
 
 # 维护： 重建 redis （删除数据）
 kubectl delete pod -l app=redis
+
+
+
+# 测试命令：
+curl http://127.0.0.1:30081/; echo ; curl http://127.0.0.1:30081/api/v1/brokers; echo ; curl http://127.0.0.1:30080/; echo ; 

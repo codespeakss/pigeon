@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/codespeakss/k8s/internal/broker"
+	"pigeon/internal/broker"
 )
 
 func init() {
@@ -35,6 +35,8 @@ func main() {
 	if BrokerID != "" {
 		// 启动订阅以 BrokerID 为 topic 的 Redis 消息
 		go srv.SubscribeTopic(ctx, BrokerID)
+		// 启动心跳，每 4 秒发送一次到 coordinator
+		go startHeartbeat(ctx, "http://coordinator-service/api/v1/brokers/heartbeat", BrokerID)
 	}
 
 	http.HandleFunc("/", srv.Handler)
@@ -85,4 +87,38 @@ func fetchBrokerID(url string) string {
 	}
 	log.Printf("fetchBrokerID failed after retries: %v", lastErr)
 	return ""
+}
+
+// startHeartbeat sends a heartbeat to coordinator every 4 seconds to refresh liveness.
+// baseURL should be coordinator heartbeat endpoint (e.g. http://coordinator-service/api/v1/brokers/heartbeat)
+func startHeartbeat(ctx context.Context, baseURL, brokerID string) {
+	client := &http.Client{Timeout: 2 * time.Second}
+	ticker := time.NewTicker(4 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("heartbeat: stopping for broker %s", brokerID)
+			return
+		case <-ticker.C:
+			url := baseURL + "?id=" + brokerID
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+			if err != nil {
+				log.Printf("heartbeat: create request error: %v", err)
+				continue
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("heartbeat: send error: %v", err)
+				continue
+			}
+			// drain and close
+			_, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				log.Printf("heartbeat: unexpected status: %s", resp.Status)
+			}
+		}
+	}
 }

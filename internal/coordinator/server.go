@@ -11,7 +11,8 @@ import (
 	"os"
 	"time"
 
-	rpkg "github.com/codespeakss/k8s/pkg/redis"
+	rpkg "pigeon/pkg/redis"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -140,4 +141,49 @@ func (s *Server) GetAllBrokersHandler(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(brokers); err != nil {
 		log.Printf("failed to write brokers response: %v", err)
 	}
+}
+
+// HeartbeatHandler refreshes the broker's redis key TTL and updates last_seen timestamp.
+// Expected query param: ?id=<broker-id>
+func (s *Server) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "missing id query param", http.StatusBadRequest)
+		return
+	}
+
+	key := fmt.Sprintf("broker:%s", id)
+	ctx := context.Background()
+
+	val, err := s.redisClient.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("redis get error in heartbeat: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	var meta map[string]string
+	if err := json.Unmarshal([]byte(val), &meta); err != nil {
+		log.Printf("failed to unmarshal broker data in heartbeat: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// update last_seen and refresh TTL
+	meta["last_seen"] = time.Now().UTC().Format(time.RFC3339)
+	data, _ := json.Marshal(meta)
+	ttl := 10 * time.Second
+	if err := s.redisClient.Set(ctx, key, data, ttl).Err(); err != nil {
+		log.Printf("failed to persist heartbeat to redis: %v", err)
+		http.Error(w, "failed to persist heartbeat", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "id": id})
 }

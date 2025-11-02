@@ -1,4 +1,4 @@
-module github.com/codespeakss/k8s
+module pigeon
 
 go 1.22
 
