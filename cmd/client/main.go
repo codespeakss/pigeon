@@ -138,7 +138,7 @@ func writePump(conn *websocket.Conn, sendChan <-chan []byte, interrupt <-chan os
 func main() {
 	// 允许通过命令行参数传入 Token（可选）。如果未提供，则随机生成一个用于测试。
 	token := flag.String("token", "", "Auth token for WebSocket connection (optional). If empty, a random token will be generated for this run")
-	addr := flag.String("addr", "localhost:8080", "WebSocket server address")
+	addr := flag.String("addr", "localhost:30080", "WebSocket server address")
 	flag.Parse()
 
 	log.SetFlags(log.Ltime)
@@ -148,7 +148,7 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 
 	// 准备连接 URL
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws"}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/api/v1/ws"}
 	log.Printf("Connecting to %s", u.String())
 
 	// ** 关键：在 Header 中设置 Token **
