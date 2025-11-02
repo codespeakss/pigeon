@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	redis "github.com/redis/go-redis/v9"
 
 	"pigeon/internal/broker"
+	rpkg "pigeon/pkg/redis"
 )
 
 const (
@@ -24,6 +26,9 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 	// 允许的最大消息大小
 	maxMessageSize = 512
+	// TTL for client metadata stored in Redis. If a client stops heartbeating
+	// its key will expire and no longer be stored.
+	clientTTL = 30 * time.Second
 )
 
 // upgrader 用于将 HTTP 连接升级为 WebSocket 连接
@@ -74,6 +79,8 @@ func (c *Client) readPump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		// update last active timestamp in redis
+		go c.hub.TouchClient(c.clientID)
 		return nil
 	})
 
@@ -86,6 +93,9 @@ func (c *Client) readPump() {
 			log.Printf("[INFO] Client %s disconnected.", c.clientID)
 			break
 		}
+
+		// update last active timestamp in redis on any received message
+		go c.hub.TouchClient(c.clientID)
 
 		var msg Message
 		if err := json.Unmarshal(message, &msg); err != nil {
@@ -154,13 +164,19 @@ type Hub struct {
 	clientsMu  sync.RWMutex
 	register   chan *Client
 	unregister chan *Client
+	// redis client for persisting client info
+	redisClient *redis.Client
+	// broker id where this hub is running
+	brokerID string
 }
 
-func newHub() *Hub {
+func newHub(rdb *redis.Client, brokerID string) *Hub {
 	return &Hub{
-		clients:    make(map[string]*Client),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		clients:     make(map[string]*Client),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+		redisClient: rdb,
+		brokerID:    brokerID,
 	}
 }
 
@@ -173,6 +189,8 @@ func (h *Hub) run() {
 			h.clients[client.clientID] = client
 			h.clientsMu.Unlock()
 			log.Printf("[INFO] Client %s registered.", client.clientID)
+			// persist registration info to redis
+			go h.persistClientRegister(client.clientID)
 
 		case client := <-h.unregister:
 			h.clientsMu.Lock()
@@ -180,9 +198,48 @@ func (h *Hub) run() {
 				delete(h.clients, client.clientID)
 				close(client.send)
 				log.Printf("[INFO] Client %s unregistered.", client.clientID)
+				// update last_active_at on unregister
+				go h.TouchClient(client.clientID)
 			}
 			h.clientsMu.Unlock()
 		}
+	}
+}
+
+// persistClientRegister writes initial client info into redis
+func (h *Hub) persistClientRegister(clientID string) {
+	if h.redisClient == nil {
+		return
+	}
+	ctx := context.Background()
+	now := time.Now().Format(time.RFC3339)
+	key := "client:" + clientID
+	// store as a hash: id, registered_at, last_active_at, broker
+	if err := h.redisClient.HSet(ctx, key, "id", clientID, "registered_at", now, "last_active_at", now, "broker", h.brokerID).Err(); err != nil {
+		log.Printf("[ERROR] persistClientRegister HSet: %v", err)
+		return
+	}
+	// set a TTL so stale clients are removed if they stop heartbeating
+	if err := h.redisClient.Expire(ctx, key, clientTTL).Err(); err != nil {
+		log.Printf("[ERROR] persistClientRegister Expire: %v", err)
+	}
+}
+
+// TouchClient updates the last_active_at timestamp for a client in redis
+func (h *Hub) TouchClient(clientID string) {
+	if h.redisClient == nil {
+		return
+	}
+	ctx := context.Background()
+	now := time.Now().Format(time.RFC3339)
+	key := "client:" + clientID
+	if err := h.redisClient.HSet(ctx, key, "last_active_at", now).Err(); err != nil {
+		log.Printf("[ERROR] TouchClient HSet: %v", err)
+		return
+	}
+	// refresh TTL so active clients stay stored
+	if err := h.redisClient.Expire(ctx, key, clientTTL).Err(); err != nil {
+		log.Printf("[ERROR] TouchClient Expire: %v", err)
 	}
 }
 
@@ -308,7 +365,8 @@ func main() {
 	}
 
 	// WebSocket hub
-	hub := newHub()
+	rdb := rpkg.NewClient("redis-service:6379")
+	hub := newHub(rdb, BrokerID)
 	go hub.run()
 
 	// HTTP routes

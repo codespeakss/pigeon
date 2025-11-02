@@ -14,11 +14,12 @@ func init() {
 
 func main() {
 	srv := coordinator.NewServer("redis-service:6379")
-	http.HandleFunc("/", srv.Handler)
+	http.HandleFunc("/", srv.RootHandler)
 	http.HandleFunc("/api/v1/assign", srv.AssignHandler)
 	http.HandleFunc("/api/v1/brokers/heartbeat", srv.HeartbeatHandler)
 	http.HandleFunc("/api/v1/brokers/{id}", srv.GetBrokerHandler)
 	http.HandleFunc("/api/v1/brokers", srv.GetAllBrokersHandler)
+	http.HandleFunc("/api/v1/clients", srv.GetClientsHandler)
 
 	server := &http.Server{
 		Addr:         ":8081", // 注意这里使用不同的端口

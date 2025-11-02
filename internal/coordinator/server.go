@@ -30,7 +30,7 @@ func NewServer(redisAddr string) *Server {
 }
 
 // Handler is the default coordinator handler that returns basic info
-func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) RootHandler(w http.ResponseWriter, r *http.Request) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		http.Error(w, "Unable to get hostname", http.StatusInternalServerError)
@@ -41,7 +41,7 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// 处理协调逻辑
-	if _, err := fmt.Fprintf(w, "23:09 Coordinator Host: %s", hostname); err != nil {
+	if _, err := fmt.Fprintf(w, "17:00 Coordinator Host: %s", hostname); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
@@ -186,4 +186,40 @@ func (s *Server) HeartbeatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "id": id})
+}
+
+// GetClientsHandler retrieves all clients managed by brokers
+func (s *Server) GetClientsHandler(w http.ResponseWriter, r *http.Request) {
+	// The broker persists each client as a separate hash keyed by "client:<id>".
+	// Previously this handler tried to HGETALL "clients" which doesn't match
+	// the way brokers write client data (they write keys like "client:Client-A").
+	// To be robust we now scan for keys "client:*" and aggregate each hash.
+	ctx := context.Background()
+
+	keys, err := s.redisClient.Keys(ctx, "client:*").Result()
+	if err != nil {
+		log.Printf("failed to retrieve client keys: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	var clients []map[string]string
+	for _, key := range keys {
+		m, err := s.redisClient.HGetAll(ctx, key).Result()
+		if err != nil {
+			log.Printf("redis HGetAll error for %s: %v", key, err)
+			continue
+		}
+		if len(m) == 0 {
+			// skip empty results
+			continue
+		}
+		clients = append(clients, m)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(clients); err != nil {
+		log.Printf("failed to write clients response: %v", err)
+	}
 }
