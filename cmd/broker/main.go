@@ -276,7 +276,7 @@ func validateToken(tokenStr string) (string, bool) {
 	const masterToken = "test-token"
 	if token == masterToken {
 		t := time.Now().Format("03:04:05PM") // 12小时制，包含秒
-		return "Test-Client-" + t, true
+		return "Client-" + t, true
 	}
 
 	if token == "user-A-token" {
@@ -357,17 +357,22 @@ func main() {
 
 	srv := broker.NewServer("redis-service:6379", BrokerID)
 
-	if BrokerID != "" {
-		// 启动订阅以 BrokerID 为 topic 的 Redis 消息
-		go srv.SubscribeTopic(ctx, BrokerID)
-		// 启动心跳，每 4 秒发送一次到 coordinator
-		go startHeartbeat(ctx, "http://coordinator-service/api/v1/brokers/heartbeat", BrokerID)
-	}
-
-	// WebSocket hub
+	// WebSocket hub — create Redis client and hub early so SubscribeTopic can
+	// deliver messages into the hub.
 	rdb := rpkg.NewClient("redis-service:6379")
 	hub := newHub(rdb, BrokerID)
 	go hub.run()
+
+	if BrokerID != "" {
+		// 启动订阅以 BrokerID 为 topic 的 Redis 消息，并将收到的消息分发到 hub
+		go srv.SubscribeTopic(ctx, BrokerID, func(clientID string, msgBytes []byte) {
+			// msgBytes is the raw JSON envelope; broker hub expects the full
+			// message bytes (same shape as notifications used elsewhere).
+			go hub.sendToClient(clientID, msgBytes)
+		})
+		// 启动心跳，每 4 秒发送一次到 coordinator
+		go startHeartbeat(ctx, "http://coordinator-service/api/v1/brokers/heartbeat", BrokerID)
+	}
 
 	// HTTP routes
 	http.HandleFunc("/", srv.Handler)

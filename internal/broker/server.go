@@ -2,6 +2,7 @@ package broker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,12 +23,56 @@ func NewServer(redisAddr string, BrokerID string) *Server {
 	}
 }
 
-func (s *Server) SubscribeTopic(ctx context.Context, topic string) {
+// SubscribeTopic subscribes to the broker's Redis channel (topic). When a
+// message arrives it calls deliver(clientID, msgBytes) so the caller (usually
+// the main package) can forward the payload to the appropriate websocket
+// client.
+func (s *Server) SubscribeTopic(ctx context.Context, topic string, deliver func(clientID string, msgBytes []byte)) {
 	rdb := redisClient.NewClient(s.redisAddr)
-	// topic := s.BrokerID
+
 	go func() {
 		err := redisClient.Subscribe(ctx, rdb, topic, func(msg string) {
 			fmt.Printf("[Broker %s] Received message: %s\n", topic, msg)
+
+			// Expect message to be JSON: {"type":"notification","payload":{...}}
+			// Parse to extract client_id from payload if present.
+			var envelope struct {
+				Type    string          `json:"type"`
+				Payload json.RawMessage `json:"payload"`
+			}
+			if err := json.Unmarshal([]byte(msg), &envelope); err != nil {
+				log.Printf("failed to unmarshal pubsub message: %v", err)
+				return
+			}
+
+			// Try extract client_id from payload (payload could be an object)
+			var payloadMap map[string]interface{}
+			if err := json.Unmarshal(envelope.Payload, &payloadMap); err != nil {
+				log.Printf("failed to unmarshal payload: %v", err)
+				return
+			}
+
+			// client_id may be present as "client_id" or "target"; prefer client_id
+			var clientID string
+			if v, ok := payloadMap["client_id"]; ok {
+				if s, ok := v.(string); ok {
+					clientID = s
+				}
+			} else if v, ok := payloadMap["target"]; ok {
+				if s, ok := v.(string); ok {
+					clientID = s
+				}
+			}
+
+			if clientID == "" {
+				log.Printf("no client_id in payload, dropping message: %s", msg)
+				return
+			}
+
+			// Deliver raw message bytes to the hub (caller will decide how to handle)
+			if deliver != nil {
+				deliver(clientID, []byte(msg))
+			}
 		})
 		if err != nil {
 			log.Printf("Subscribe error: %v", err)

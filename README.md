@@ -61,6 +61,24 @@ curl http://127.0.0.1:30081/; echo ; curl http://127.0.0.1:30081/api/v1/brokers;
 http://127.0.0.1:30081/api/v1/brokers
 http://127.0.0.1:30081/api/v1/clients
 
+Coordinator: send message to a specific client
+
+You can POST to the coordinator to send a message to a client. The coordinator
+will look up which broker manages the client and publish a notification to the
+broker's Redis channel.
+
+Example:
+
+```bash
+curl -X POST \
+	-H "Content-Type: application/json" \
+	-d '{"client_id":"Client-104923AM","data":"Hello from coordinator"}' \
+	http://127.0.0.1:30081/api/v1/send
+```
+
+The coordinator responds with 202 Accepted and a small JSON payload when the
+message is published.
+
 
 # MacOS M1 上 LB 部署
 brew install nginx

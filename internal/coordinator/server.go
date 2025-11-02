@@ -223,3 +223,72 @@ func (s *Server) GetClientsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("failed to write clients response: %v", err)
 	}
 }
+
+func (s *Server) SendToClientHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ClientID string `json:"client_id"`
+		Data     string `json:"data"`
+		MsgID    string `json:"msg_id,omitempty"`
+	}
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if req.ClientID == "" || req.Data == "" {
+		http.Error(w, "missing client_id or data", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	// client info stored as hash key: client:<id> with field "broker"
+	key := fmt.Sprintf("client:%s", req.ClientID)
+	brokerID, err := s.redisClient.HGet(ctx, key, "broker").Result()
+	if err != nil {
+		if err == redis.Nil {
+			http.Error(w, "client not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("redis HGet error: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Build the same message shape brokers expect for notifications.
+	type NotificationPayload struct {
+		MsgID    string `json:"msg_id"`
+		Data     string `json:"data"`
+		ClientID string `json:"client_id"`
+	}
+	type Message struct {
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload,omitempty"`
+	}
+
+	msgID := req.MsgID
+	if msgID == "" {
+		msgID = "msg-" + time.Now().Format("20060102T150405.000")
+	}
+
+	payload := NotificationPayload{MsgID: msgID, Data: req.Data, ClientID: req.ClientID}
+	payloadBytes, _ := json.Marshal(payload)
+	msg := Message{Type: "notification", Payload: payloadBytes}
+	msgBytes, _ := json.Marshal(msg)
+
+	// Publish to the broker's channel (brokerID). Brokers subscribe to a
+	// channel named after their BrokerID.
+	topic := brokerID
+	if err := s.redisClient.Publish(ctx, topic, string(msgBytes)).Err(); err != nil {
+		log.Printf("redis publish error to %s: %v", topic, err)
+		http.Error(w, "failed to publish", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "accepted", "broker": brokerID, "msg_id": msgID})
+}

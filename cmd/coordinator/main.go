@@ -20,6 +20,8 @@ func main() {
 	http.HandleFunc("/api/v1/brokers/{id}", srv.GetBrokerHandler)
 	http.HandleFunc("/api/v1/brokers", srv.GetAllBrokersHandler)
 	http.HandleFunc("/api/v1/clients", srv.GetClientsHandler)
+	// endpoint to send a message to a specific client by client_id
+	http.HandleFunc("/api/v1/send", srv.SendToClientHandler)
 
 	server := &http.Server{
 		Addr:         ":8081", // 注意这里使用不同的端口
