@@ -218,7 +218,8 @@ func validateToken(tokenStr string) (string, bool) {
 
 	const masterToken = "test-token"
 	if token == masterToken {
-		return "Test-Client", true
+		t := time.Now().Format("03:04:05PM") // 12小时制，包含秒
+		return "Test-Client-" + t, true
 	}
 
 	if token == "user-A-token" {
@@ -366,6 +367,33 @@ func main() {
 		}
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte("broadcasted to targets"))
+	})
+
+	// 提供 Hub clients 信息的 HTTP 接口
+	http.HandleFunc("/api/v1/hub/clients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// 读取 clients 列表（线程安全）
+		hub.clientsMu.RLock()
+		clients := make([]string, 0, len(hub.clients))
+		for id := range hub.clients {
+			clients = append(clients, id)
+		}
+		count := len(clients)
+		hub.clientsMu.RUnlock()
+
+		resp := map[string]interface{}{
+			"count":   count,
+			"clients": clients,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	go startDemoNotificationSender(hub)

@@ -56,7 +56,8 @@ func (s *Server) Handler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if _, err := fmt.Fprintf(w, "23:03 Host: %s, BrokerID: %s, Redis Count: %d", hostname, s.BrokerID, count); err != nil {
+	// 返回当前连接的 websocket 客户端列表
+	if _, err := fmt.Fprintf(w, "23:03 Host: %s, BrokerID: %s, Redis Count: %d ", hostname, s.BrokerID, count); err != nil {
 		log.Printf("Error writing response: %v", err)
 	}
 }
