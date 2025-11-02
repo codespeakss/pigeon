@@ -8,6 +8,9 @@ MacOS M1  Docker Desktop 上 Resource Proxies 上 打开 ‘手动配置’ 并�
 docker exec -it warp-proxxy /bin/bash
 
 
+
+
+
 # 构建镜像
 docker image rm -f go-k8s-demo; docker build -t go-k8s-demo:latest .
 
@@ -54,3 +57,11 @@ kubectl delete pod -l app=redis
 
 # 测试命令：
 curl http://127.0.0.1:30081/; echo ; curl http://127.0.0.1:30081/api/v1/brokers; echo ; curl http://127.0.0.1:30080/; echo ; 
+
+
+# MacOS M1 上 LB 部署
+brew install nginx
+
+配置文件 /opt/homebrew/etc/nginx/nginx.conf 
+nginx will load all files in  /opt/homebrew/etc/nginx/servers/
+重新加载配置：  brew services restart nginx 
