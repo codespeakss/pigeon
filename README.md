@@ -35,7 +35,6 @@ kubectl get pods
 # 清理
 kubectl delete deployment broker
 kubectl delete deployment go-server
-
 kubectl delete service go-server-service
 
 
@@ -57,6 +56,10 @@ kubectl delete pod -l app=redis
 
 # 测试命令：
 curl http://127.0.0.1:30081/; echo ; curl http://127.0.0.1:30081/api/v1/brokers; echo ; curl http://127.0.0.1:30080/; echo ; 
+
+
+http://127.0.0.1:30081/api/v1/brokers
+http://127.0.0.1:30081/api/v1/clients
 
 
 # MacOS M1 上 LB 部署
