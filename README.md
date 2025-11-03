@@ -33,21 +33,19 @@ kubectl get pods
 
 
 # 镜像预先拉取
-
-
-# coordinate / broker 的构建、部署、更新
 curl -x socks5h://127.0.0.1:7880 https://www.google.com -v
 docker pull --platform=linux/arm64 golang:1.22-alpine
 docker pull --platform=linux/arm64 alpine:3.20
-NAMESPACE=cluster-beijing; kubectl get ns $NAMESPACE >/dev/null 2>&1 || kubectl create ns $NAMESPACE
-kubectl apply -f deployments/redis/deployment.yaml  -n $NAMESPACE
-DOCKER_BUILDKIT=1   docker build  --pull=false  -t coordinator:latest -f deployments/coordinator/Dockerfile . \
-&& kubectl apply -f deployments/coordinator/deployment.yaml -n $NAMESPACE \
-&& kubectl delete pod -l app=coordinator -n $NAMESPACE; 
-DOCKER_BUILDKIT=1   docker build  --pull=false  -t broker:latest -f deployments/broker/Dockerfile .  \
-&& kubectl apply -f deployments/broker/deployment.yaml  -n $NAMESPACE \
-&& kubectl delete pod -l  app=broker -n $NAMESPACE
 
+# 复位 k8s 所有
+kubectl delete all --all -n default
+
+# coordinate-broker 的构建、部署、更新
+kubectl apply -f deployments/redis/deployment.yaml
+docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . \
+&& kubectl apply -f deployments/coordinator/deployment.yaml
+docker build -t broker:latest -f deployments/broker/Dockerfile . \
+&& kubectl apply -f deployments/broker/deployment.yaml
 
 
 # 测试命令：
@@ -82,3 +80,7 @@ brew install nginx
 配置文件 /opt/homebrew/etc/nginx/nginx.conf 
 nginx will load all files in  /opt/homebrew/etc/nginx/servers/
 重新加载配置：  brew services restart nginx 
+
+
+# K8S ...
+kubectl cluster-info; kubectl get cs; kubectl get pods -n kube-system ; kubectl get nodes;

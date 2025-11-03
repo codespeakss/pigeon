@@ -9,9 +9,28 @@
         .clients { margin-left: 40px; }
         .card { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin: 8px 0; background:#fafafa }
         .small { color: #666; font-size: 0.9em }
+        
+        /* MODIFIED: 修改 .controls 样式以实现右上角定位 */
+        .controls {
+            font-size: 0.9em;
+            position: absolute; /* 使用绝对定位 */
+            top: 20px;          /* 距离顶部 20px (与 body padding 一致) */
+            right: 20px;         /* 距离右侧 20px (与 body padding 一致) */
+        }
     </style>
 </head>
 <body>
+    <div class="controls">
+        <label for="refreshInterval">自动刷新间隔: </label>
+        <select id="refreshInterval">
+            <option value="0">禁用</option>
+            <option value="1000" selected>1 秒</option>
+            <option value="5000">5 秒</option>
+            <option value="30000">30 秒</option>
+            <option value="60000">1 分钟</option>
+        </select>
+    </div>
+
     <h1>Coordinator → Brokers → Clients</h1>
     <p class="small">This page queries the coordinator for brokers and clients and shows the hierarchical relationship.</p>
 
@@ -25,6 +44,9 @@
     <script>
         // Base URL for coordinator API (matches README/test/send.html use of 127.0.0.1:30081)
         const BASE = 'http://127.0.0.1:30081';
+
+        // NEW: 用于存储 setInterval 返回的 ID
+        let refreshTimer = null;
 
         async function fetchCoordinatorInfo() {
             try {
@@ -95,7 +117,7 @@
 
         function renderBrokers(brokers) {
             const el = document.getElementById('brokers');
-            el.innerHTML = '';
+            el.innerHTML = ''; // 清空旧数据
             if (!Array.isArray(brokers) || brokers.length === 0) {
                 el.innerHTML = '<p class="small">No brokers found.</p>';
                 return;
@@ -107,9 +129,55 @@
             });
         }
 
-        // initial load
-        fetchCoordinatorInfo();
-        fetchBrokers();
+        // --- NEW: 自动刷新逻辑 ---
+
+        /**
+         * 1. 将所有数据获取操作组合到一个函数中
+         */
+        function refreshData() {
+            // 在刷新时重置 "loading..." 状态，提供即时反馈
+            document.getElementById('coordInfo').textContent = 'loading...';
+            // 注意: renderBrokers 会自动清空 #brokers, 所以这里不需要显式清空
+            
+            fetchCoordinatorInfo();
+            fetchBrokers();
+        }
+
+        /**
+         * 2. 创建一个函数来设置或清除定时器
+         */
+        function setupAutoRefresh(intervalMs) {
+            // 清除任何现有的定时器
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+
+            // 如果间隔大于 0 (即 "禁用" 选项未被选中), 则设置新的定时器
+            if (intervalMs > 0) {
+                refreshTimer = setInterval(refreshData, intervalMs);
+            }
+        }
+
+        // 3. 获取下拉菜单元素
+        const intervalSelect = document.getElementById('refreshInterval');
+
+        // 4. 为下拉菜单添加 'change' 事件监听器
+        intervalSelect.addEventListener('change', () => {
+            const newInterval = parseInt(intervalSelect.value, 10);
+            setupAutoRefresh(newInterval);
+        });
+
+        // 5. 页面加载时的初始操作
+        
+        // 立即加载一次数据
+        refreshData();
+
+        // 根据默认选中的值启动定时器
+        const defaultInterval = parseInt(intervalSelect.value, 10);
+        setupAutoRefresh(defaultInterval);
+
+        // --- 结束: 自动刷新逻辑 ---
     </script>
 </body>
 </html>
