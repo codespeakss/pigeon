@@ -32,25 +32,21 @@ kubectl get pods
  然后访问：curl http://127.0.0.1
 
 
-# 清理
-kubectl delete deployment broker
-kubectl delete deployment go-server
-kubectl delete service go-server-service
+# 镜像预先拉取
 
 
-# coordinate 的构建、部署、更新
+# coordinate / broker 的构建、部署、更新
 curl -x socks5h://127.0.0.1:7880 https://www.google.com -v
-docker build -t coordinator:latest -f deployments/coordinator/Dockerfile . && kubectl apply -f deployments/coordinator/deployment.yaml && kubectl delete pod -l app=coordinator
-
-
-docker pull golang:1.22-alpine
-
-# broker 的构建、部署、更新
-docker build -t broker:latest -f deployments/broker/Dockerfile . && kubectl apply -f deployments/broker/deployment.yaml && kubectl delete pod -l app=broker
-
-
-# 维护： 重建 redis （删除数据）
-kubectl delete pod -l app=redis
+docker pull --platform=linux/arm64 golang:1.22-alpine
+docker pull --platform=linux/arm64 alpine:3.20
+NAMESPACE=cluster-beijing; kubectl get ns $NAMESPACE >/dev/null 2>&1 || kubectl create ns $NAMESPACE
+kubectl apply -f deployments/redis/deployment.yaml  -n $NAMESPACE
+DOCKER_BUILDKIT=1   docker build  --pull=false  -t coordinator:latest -f deployments/coordinator/Dockerfile . \
+&& kubectl apply -f deployments/coordinator/deployment.yaml -n $NAMESPACE \
+&& kubectl delete pod -l app=coordinator -n $NAMESPACE; 
+DOCKER_BUILDKIT=1   docker build  --pull=false  -t broker:latest -f deployments/broker/Dockerfile .  \
+&& kubectl apply -f deployments/broker/deployment.yaml  -n $NAMESPACE \
+&& kubectl delete pod -l  app=broker -n $NAMESPACE
 
 
 

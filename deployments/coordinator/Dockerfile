@@ -4,7 +4,7 @@ WORKDIR /app
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o coordinator ./cmd/coordinator
 
-FROM alpine:latest
+FROM alpine:3.20
 WORKDIR /app
 COPY --from=builder /app/coordinator .
 EXPOSE 8081
